@@ -10,12 +10,12 @@
 /* hello设备结构体 */
 struct hello_dev
 {
-	dev_t devid;			/* 设备号 	 */
-	int major;				/* 主设备号	  */
-	int minor;				/* 次设备号   */
-	struct cdev cdev;		/* cdev 	*/
-	struct class *class;	/* 类 		*/
-	struct device *device;	/* 设备 	 */
+	dev_t devid;			// 设备号
+	int major;				// 主设备号
+	int minor;				// 次设备号
+	struct cdev cdev;		// cdev
+	struct class *class;	// class
+	struct device *device;	// 设备
 
 	char buf[256];
 };
@@ -97,7 +97,8 @@ static int hello_release(struct inode *inode, struct file *filp)
 /*
  * 设备操作函数结构体
  */
-static struct file_operations hello_fops = {
+static struct file_operations hello_fops = 
+{
 	.owner = THIS_MODULE,	
 	.open = hello_open,
 	.read = hello_read,
@@ -113,9 +114,9 @@ static struct file_operations hello_fops = {
 static int __init hello_init(void)
 {
 	/* 动态申请设备号 */
-	alloc_chrdev_region(&hello.devid, 0, 1, "hello");	/* 申请设备号 */
-	hello.major = MAJOR(hello.devid);	/* 获取分配号的主设备号 */
-	hello.minor = MINOR(hello.devid);	/* 获取分配号的次设备号 */
+	alloc_chrdev_region(&hello.devid, 0, 1, "hello");	// 申请设备号
+	hello.major = MAJOR(hello.devid);	// 获取分配号的主设备号
+	hello.minor = MINOR(hello.devid);	// 获取分配号的次设备号
 
 	/* 初始化并向Linux内核添加字符设备cdev */
 	hello.cdev.owner = THIS_MODULE;
@@ -145,8 +146,8 @@ static int __init hello_init(void)
  */
 static void __exit hello_exit(void)
 {
-	cdev_del(&hello.cdev);/*  删除cdev */
-	unregister_chrdev_region(hello.devid, 1); /* 注销设备号 */
+	cdev_del(&hello.cdev);	// 删除cdev
+	unregister_chrdev_region(hello.devid, 1);	// 注销设备号
 
 	device_destroy(hello.class, hello.devid);
 	class_destroy(hello.class);
