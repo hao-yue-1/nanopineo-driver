@@ -10,7 +10,7 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    int fd = open("/dev/ledy", O_RDWR);
+    int fd = open("/dev/led_blue", O_RDWR);
     if (fd < 0)
     {
         printf("ERROR: open\n");

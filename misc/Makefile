@@ -1,6 +1,6 @@
 KERNELDIR := /usr/src/linux-headers-4.14.111/
 CURRENT_PATH := $(shell pwd)
-obj-m := ledy.o
+obj-m := ledb.o
 
 build: kernel_modules
 

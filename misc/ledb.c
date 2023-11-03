@@ -152,7 +152,7 @@ static struct file_operations ledb_fops =
 static struct miscdevice ledb_miscdev = 
 {
 	.minor = 144,
-	.name  = "led_blue"
+	.name  = "led_blue",
 	.fops  = &ledb_fops,
 };
 
