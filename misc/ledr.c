@@ -19,24 +19,24 @@
 #include <linux/platform_device.h>
 #include <linux/miscdevice.h>
 
-// led_red {
-// 		compatible = "led_red";
+// led_blue {
+// 		compatible = "led_blue";
 // 		pinctrl-names = "default";
-// 		pinctrl-0 = <&led_red_pin>;
+// 		pinctrl-0 = <&led_blue_pin>;
 
 // 		status = "okay";
-// 		gpios = <&pio 6 7 GPIO_ACTIVE_HIGH>;
+// 		gpios = <&pio 6 6 GPIO_ACTIVE_HIGH>;
 // 	};
 
-// led_red_pin: led_red_pin {
-// 	pins = "PG7";
+// led_blue_pin: led_blue_pin {
+// 	pins = "PG6";
 // 	function = "gpio_out";
 // };
 
 #define LED_ON 1
 #define LED_OFF 0
 
-/* ledr设备结构体 */
+/* led设备结构体 */
 struct led_dev
 {
 	dev_t devid;			// 设备号
@@ -50,7 +50,7 @@ struct led_dev
 	int led_gpio;			// led所使用的GPIO编号
 };
 
-struct led_dev ledr;
+struct led_dev ledb;
 
 /*
  * @description		: 打开设备
@@ -59,11 +59,11 @@ struct led_dev ledr;
  * 					  一般在open的时候将private_data指向设备结构体。
  * @return 			: 0 成功;其他 失败
  */
-static int ledr_open(struct inode *inode, struct file *filp)
+static int ledb_open(struct inode *inode, struct file *filp)
 {
-	filp->private_data = &ledr; /* 设置私有数据 */
+	filp->private_data = &ledb; /* 设置私有数据 */
 
-	printk("ledr open!\r\n");
+	printk("ledb open!\r\n");
 	return 0;
 }
 
@@ -75,11 +75,11 @@ static int ledr_open(struct inode *inode, struct file *filp)
  * @param - offt 	: 相对于文件首地址的偏移
  * @return 			: 读取的字节数，如果为负值，表示读取失败
  */
-static ssize_t ledr_read(struct file *filp, char __user *buf, size_t cnt, loff_t *offt)
+static ssize_t ledb_read(struct file *filp, char __user *buf, size_t cnt, loff_t *offt)
 {
 	struct led_dev* dev = (struct led_dev*)filp->private_data;
 	
-	printk("ledr read!\r\n");
+	printk("ledb read!\r\n");
 	return 0;
 }
 
@@ -91,7 +91,7 @@ static ssize_t ledr_read(struct file *filp, char __user *buf, size_t cnt, loff_t
  * @param - offt 	: 相对于文件首地址的偏移
  * @return 			: 写入的字节数，如果为负值，表示写入失败
  */
-static ssize_t ledr_write(struct file *filp, const char __user *buf, size_t cnt, loff_t *offt)
+static ssize_t ledb_write(struct file *filp, const char __user *buf, size_t cnt, loff_t *offt)
 {
 	struct led_dev* dev = (struct led_dev*)filp->private_data;
 
@@ -111,19 +111,19 @@ static ssize_t ledr_write(struct file *filp, const char __user *buf, size_t cnt,
 	if (led_state == LED_ON)
 	{
 		gpio_set_value(dev->led_gpio, 0);	// 开
-		printk("ledr is on\r\n");
+		printk("ledb is on\r\n");
 	}
 	else if (led_state == LED_OFF)
 	{
 		gpio_set_value(dev->led_gpio, 1);	// 关
-		printk("ledr is off\r\n");
+		printk("ledb is off\r\n");
 	}
 	else
 	{
-		printk("ledr error is %d\r\n", led_state);
+		printk("ledb error is %d\r\n", led_state);
 	}
 	
-	printk("ledr write!\r\n");
+	printk("ledb write!\r\n");
 	return 0;
 }
 
@@ -132,28 +132,28 @@ static ssize_t ledr_write(struct file *filp, const char __user *buf, size_t cnt,
  * @param - filp 	: 要关闭的设备文件(文件描述符)
  * @return 			: 0 成功;其他 失败
  */
-static int ledr_release(struct inode *inode, struct file *filp)
+static int ledb_release(struct inode *inode, struct file *filp)
 {
-	printk("ledr release!\r\n");
+	printk("ledb release!\r\n");
 	return 0;
 }
 
 /* 设备操作函数 */
-static struct file_operations ledr_fops = 
+static struct file_operations ledb_fops = 
 {
 	.owner = THIS_MODULE,	
-	.open = ledr_open,
-	.read = ledr_read,
-	.write = ledr_write,
-	.release = ledr_release,
+	.open = ledb_open,
+	.read = ledb_read,
+	.write = ledb_write,
+	.release = ledb_release,
 };
 
 /* MISC 设备结构体 */
-static struct miscdevice ledr_miscdev = 
+static struct miscdevice ledb_miscdev = 
 {
 	.minor = 144,
-	.name  = "led_red"
-	.fops  = &ledr_fops,
+	.name  = "led_blue"
+	.fops  = &ledb_fops,
 };
 
 /*
@@ -161,36 +161,36 @@ static struct miscdevice ledr_miscdev =
  * @param - dev	: platform 设备
  * @return 		: 0成功
  */
-static int ledr_probe(struct platform_device* dev)
+static int ledb_probe(struct platform_device* dev)
 {
 	int ret = 0;
 
-	/* 获取设备节点 led_red */
-	ledr.nd = of_find_node_by_path("/led_red");
-	if (ledr.nd == NULL)
+	/* 获取设备节点 led_blue */
+	ledb.nd = of_find_node_by_path("/led_blue");
+	if (ledb.nd == NULL)
 	{
-		printk("ERROR: led_red can't found\r\n");
+		printk("ERROR: led_blue can't found\r\n");
 		return -EINVAL;
 	}
 	else
 	{
-		printk("SUCCESS: led_red has been found\r\n");
+		printk("SUCCESS: led_blue has been found\r\n");
 	}
 
 	/* 获取 LED 所使用的 LED编号 */
-	ledr.led_gpio = of_get_named_gpio(ledr.nd, "gpios", 0);
-	if (ledr.led_gpio < 0)
+	ledb.led_gpio = of_get_named_gpio(ledb.nd, "gpios", 0);
+	if (ledb.led_gpio < 0)
 	{
-		printk("ERROR: led_red.led_gpio can't found\r\n");
+		printk("ERROR: led_blue.led_gpio can't found\r\n");
 		return -EINVAL;
 	}
 	else
 	{
-		printk("SUCCESS: led_red.led_gpio has been found is %d\r\n", ledr.led_gpio);
+		printk("SUCCESS: led_blue.led_gpio has been found is %d\r\n", ledb.led_gpio);
 	}
 
 	/* 设置 GPIO 为输出 并且输出高电平 默认关闭 LED 灯 */
-	ret = gpio_direction_output(ledr.led_gpio, 1);
+	ret = gpio_direction_output(ledb.led_gpio, 1);
 	if (ret < 0)
 	{
 		printk("ERROR: gpio_direction_output\r\n");
@@ -201,14 +201,14 @@ static int ledr_probe(struct platform_device* dev)
 		printk("SUCCESS: gpio_direction_output\r\n");
 	}
 
-	ret = misc_register(&ledr_miscdev);
+	ret = misc_register(&ledb_miscdev);
 	if (ret < 0)
 	{
 		printk("ERROR: misc_register\r\n");
 		return -EFAULT;
 	}
 
-	printk("ledr_probe!\r\n");
+	printk("ledb_probe!\r\n");
 	return 0;
 }
 
@@ -217,30 +217,30 @@ static int ledr_probe(struct platform_device* dev)
  * @param - dev	: platform 设备
  * @return 		: 0成功
  */
-static int ledr_remove(struct platform_device* dev)
+static int ledb_remove(struct platform_device* dev)
 {
-	misc_deregister(&ledr_miscdev);
+	misc_deregister(&ledb_miscdev);
 
-	printk("ledr_remove!\r\n");
+	printk("ledb_remove!\r\n");
 	return 0;
 }
 
 /* 匹配列表 用于驱动和设备树中的设备进行匹配（通过 compatible 属性） */
-static const struct of_device_id ledr_of_match[] = 
+static const struct of_device_id ledb_of_match[] = 
 {
-	{.compatible = "led_red"},
+	{.compatible = "led_blue"},
 };
 
 /* platform 驱动结构体 */
-static struct platform_driver ledr_driver = 
+static struct platform_driver ledb_driver = 
 {
 	.driver = 
 	{
-		.name = "h3-led_red",
-		.of_match_table = ledr_of_match,
+		.name = "h3-led_blue",
+		.of_match_table = ledb_of_match,
 	},
-	.probe = ledr_probe,
-	.remove = ledr_remove,
+	.probe = ledb_probe,
+	.remove = ledb_remove,
 };
 
 /*
@@ -248,19 +248,19 @@ static struct platform_driver ledr_driver =
  * @param 		: 无
  * @return 		: 无
  */
-static int __init ledr_init(void)
+static int __init ledb_init(void)
 {
 	int ret = 0;
 	
 	/* 向 Linux 内核注册一个 platform 驱动 */
-	ret = platform_driver_register(&ledr_driver);
+	ret = platform_driver_register(&ledb_driver);
 	if (ret != 0)
 	{
 		printk("ERROR: platform_driver_register!\r\n");
 		return ret;
 	}
 
-	printk("ledr init!\r\n");
+	printk("ledb init!\r\n");
 	return 0;
 }
 
@@ -269,16 +269,16 @@ static int __init ledr_init(void)
  * @param 		: 无
  * @return 		: 无
  */
-static void __exit ledr_exit(void)
+static void __exit ledb_exit(void)
 {
 	/* 向 Linux 内核卸载 platform 驱动 */
-	platform_driver_unregister(&ledr_driver);
+	platform_driver_unregister(&ledb_driver);
 
-	printk("ledr exit!\r\n");
+	printk("ledb exit!\r\n");
 }
 
-module_init(ledr_init);
-module_exit(ledr_exit);
+module_init(ledb_init);
+module_exit(ledb_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("yue");
