@@ -21,6 +21,10 @@
 
 #include <linux/input.h>
 
+#include <linux/of_irq.h>
+#include <linux/irq.h>
+#include <linux/timer.h>
+
 // key_g8 {
 // 	compatible = "key_g8";
 // 	pinctrl-names = "default";
@@ -35,6 +39,16 @@
 // 	function = "gpio_in";
 // };
 
+/* 中断 IO 描述结构体 */
+struct irq_key
+{
+	int gpio;				// GPIO 编号
+	int irq_num;			// 中断号
+	unsigned char value;	// 按键值
+	char name[10];			// 名称
+	irqreturn_t (*handler)(int, void*);	// 中断服务函数
+};
+
 /* key设备结构体 */
 struct key_dev
 {
@@ -46,12 +60,60 @@ struct key_dev
 	struct device *device;	// class中的设备
 	
 	struct device_node *nd;	// 设备节点
-	int key_gpio;			// key所使用的GPIO编号
 
 	struct input_dev* input_dev;	// input设备
+	atomic_t key_value;				// 有效的按键值
+	atomic_t release_key;			// 是否完成一次按键
+	unsigned char cur_key_num;		// 当前按键号
+
+	struct irq_key irq_key;			// 中断 IO
+	struct timer_list timer;		// 定时器
 };
 
 struct key_dev key8;
+
+/*
+ * @description		: 中断服务函数 开启定时器 延时 10ms 用于按键消抖
+ * @param - irq 	: 中断号
+ * @param - dev_id	: 设备结构体
+ * @return 			: 0 成功;其他 失败
+ */
+static irqreturn_t key8_handler(int irq, void* dev_id)
+{
+	struct key_dev* dev = (struct key_dev*)dev_id;
+
+	dev->cur_key_num = 0;
+	dev->timer.data = (volatile long)dev_id;
+	mod_timer(&dev->timer, jiffies+msecs_to_jiffies(10));
+	
+	return IRQ_RETVAL(IRQ_HANDLED);
+}
+
+/*
+ * @description		: 定时器服务函数 用于按键消抖
+ * @param - arg 	: 设备结构体
+ * @return 			: 0 成功;其他 失败
+ */
+void timer_function(unsigned long arg)
+{
+	struct key_dev* dev = (struct key_dev*)arg;
+	struct irq_key* key;
+	unsigned char value;
+	unsigned char num;
+	
+	key = dev->irq_key;
+	num = dev->cur_key_num;
+	value = gpio_get_value(key->gpio);
+	if (value == 0)	// 按键按下
+	{
+		atomic_set(&dev->key_value, key->value);
+	}
+	else			// 按键松开
+	{
+		atomic_set(&dev->key_value, 0x80 | key->value);
+		atomic_set(&dev->release_key, 1);	// 一次有效的按键操作
+	}
+}
 
 /*
  * @description		: 打开设备
@@ -143,19 +205,19 @@ static int __init key8_init(void)
 	}
 
 	/* 获取 key 所使用的 key编号 */
-	key8.key_gpio = of_get_named_gpio(key8.nd, "gpios", 0);
-	if (key8.key_gpio < 0)
+	key8.irq_key.gpio = of_get_named_gpio(key8.nd, "gpios", 0);
+	if (key8.irq_key.gpio < 0)
 	{
 		printk("ERROR: key_g8.key_gpio can't found\r\n");
 		return -EINVAL;
 	}
 	else
 	{
-		printk("SUCCESS: key_g8.key_gpio has been found is %d\r\n", key8.key_gpio);
+		printk("SUCCESS: key_g8.key_gpio has been found is %d\r\n", key8.irq_key.gpio);
 	}
 
 	/* 设置 GPIO 为输入 */
-	ret = gpio_direction_input(key8.key_gpio);
+	ret = gpio_direction_input(key8.irq_key.gpio);
 	if (ret < 0)
 	{
 		printk("ERROR: gpio_direction_input\r\n");
@@ -165,6 +227,24 @@ static int __init key8_init(void)
 	{
 		printk("SUCCESS: gpio_direction_input\r\n");
 	}
+
+	/* 申请中断 */
+	sprintf(key8.irq_key.name, "key8");
+	key8.irq_key.handler = key8_handler;
+	key8.irq_key.value   = 1;
+
+	ret = request_irq(key8.irq_key.irq_num, key8.irq_key.handler, 
+					IRQF_TRIGGER_FALLING|IRQF_TRIGGER_RISING, 
+					key8.irq_key.name, &key8);
+	if (ret < 0)
+	{
+		printk("ERROR: request_irq\r\n");
+		return -EFAULT;
+	}
+	
+	/* 创建定时器 */
+	init_timer(&key8.timer);
+	key8.timer.function = timer_function;
 
 	/* 申请 input_dev */
 	key8.input_dev = input_allocate_device();
