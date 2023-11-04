@@ -101,7 +101,7 @@ void timer_function(unsigned long arg)
 	unsigned char value;
 	unsigned char num;
 	
-	key = dev->irq_key;
+	key = &dev->irq_key;
 	num = dev->cur_key_num;
 	value = gpio_get_value(key->gpio);
 	if (value == 0)	// 按键按下
@@ -229,7 +229,7 @@ static int __init key8_init(void)
 	}
 
 	/* 申请中断 */
-	sprintf(key8.irq_key.name, "key8");
+	sprintf(key8.irq_key.name, "key_g8");
 	key8.irq_key.handler = key8_handler;
 	key8.irq_key.value   = 1;
 
