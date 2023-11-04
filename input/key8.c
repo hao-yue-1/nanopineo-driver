@@ -227,6 +227,7 @@ static int __init key8_init(void)
 	{
 		printk("SUCCESS: gpio_direction_input\r\n");
 	}
+	key8.irq_key.irq_num = irq_of_parse_and_map(key8.nd, 0);
 
 	/* 申请中断 */
 	sprintf(key8.irq_key.name, "key_g8");
@@ -238,7 +239,7 @@ static int __init key8_init(void)
 					key8.irq_key.name, &key8);
 	if (ret < 0)
 	{
-		printk("ERROR: request_irq\r\n");
+		printk("ERROR: request_irq is %d\r\n", ret);
 		return -EFAULT;
 	}
 	
