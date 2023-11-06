@@ -80,11 +80,12 @@ struct key_dev key8;
  */
 static irqreturn_t key8_handler(int irq, void* dev_id)
 {
+	printk("DEBUG: this is irq_handler\r\n");
 	struct key_dev* dev = (struct key_dev*)dev_id;
 
 	dev->cur_key_num = 0;
 	dev->timer.data = (volatile long)dev_id;
-	mod_timer(&dev->timer, jiffies+msecs_to_jiffies(10));
+	mod_timer(&dev->timer, jiffies+msecs_to_jiffies(10));	// 10ms
 	
 	return IRQ_RETVAL(IRQ_HANDLED);
 }
@@ -96,22 +97,23 @@ static irqreturn_t key8_handler(int irq, void* dev_id)
  */
 void timer_function(unsigned long arg)
 {
+	printk("DEBUG: this is timer_handler\r\n");
 	struct key_dev* dev = (struct key_dev*)arg;
-	struct irq_key* key;
-	unsigned char value;
-	unsigned char num;
-	
-	key = &dev->irq_key;
-	num = dev->cur_key_num;
-	value = gpio_get_value(key->gpio);
+	struct irq_key* key = &dev->irq_key;
+
+	/* 上报按键值 */
+	unsigned char value = gpio_get_value(key->gpio);	// 读取 IO 值
 	if (value == 0)	// 按键按下
 	{
-		atomic_set(&dev->key_value, key->value);
+		input_report_key(dev->input_dev, key->value, 1);
+		input_sync(dev->input_dev);
+		printk("DEBUG: release_key is 1\r\n");
 	}
 	else			// 按键松开
 	{
-		atomic_set(&dev->key_value, 0x80 | key->value);
-		atomic_set(&dev->release_key, 1);	// 一次有效的按键操作
+		input_report_key(dev->input_dev, key->value, 0);
+		input_sync(dev->input_dev);
+		printk("DEBUG: release_key is 0\r\n");
 	}
 }
 
@@ -174,7 +176,7 @@ static int __init key8_init(void)
 	key8.irq_key.value   = 1;
 
 	ret = request_irq(key8.irq_key.irq_num, key8.irq_key.handler, 
-					IRQ_TYPE_LEVEL_LOW, key8.irq_key.name, &key8);
+					IRQ_TYPE_EDGE_BOTH, key8.irq_key.name, &key8);
 	if (ret < 0)
 	{
 		printk("ERROR: request_irq is %d\r\n", ret);
@@ -186,22 +188,22 @@ static int __init key8_init(void)
 	}
 	
 	/* 创建定时器 */
-	// init_timer(&key8.timer);
-	// key8.timer.function = timer_function;
+	init_timer(&key8.timer);
+	key8.timer.function = timer_function;
 
 	/* 申请 input_dev */
-	// key8.input_dev = input_allocate_device();
-	// key8.input_dev->name = "key8";
-	// key8.input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP);
-	// input_set_capability(key8.input_dev, EV_KEY, KEY_0);
+	key8.input_dev = input_allocate_device();
+	key8.input_dev->name = "key8";
+	key8.input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP);
+	input_set_capability(key8.input_dev, EV_KEY, KEY_0);
 
-	// /* 注册 input 设备 */
-	// ret = input_register_device(key8.input_dev);
-	// if (ret != 0)
-	// {
-	// 	printk("ERROR: input_register_device\r\n");
-	// 	return ret;
-	// }
+	/* 注册 input 设备 */
+	ret = input_register_device(key8.input_dev);
+	if (ret != 0)
+	{
+		printk("ERROR: input_register_device\r\n");
+		return ret;
+	}
 
 	printk("key8 init!\r\n");
 	return 0;
@@ -214,12 +216,12 @@ static int __init key8_init(void)
  */
 static void __exit key8_exit(void)
 {
-	// del_timer_sync(&key8.timer);	// 删除定时器
+	del_timer_sync(&key8.timer);	// 删除定时器
 	free_irq(key8.irq_key.irq_num, &key8);	// 释放中断
 	gpio_free(key8.irq_key.gpio);	// 释放 IO
 
-	// input_unregister_device(key8.input_dev);
-	// input_free_device(key8.input_dev);
+	input_unregister_device(key8.input_dev);
+	input_free_device(key8.input_dev);
 
 	printk("key8 exit!\r\n");
 }
