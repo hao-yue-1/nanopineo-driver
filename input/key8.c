@@ -190,6 +190,8 @@ static struct file_operations key8_fops =
  */
 static int __init key8_init(void)
 {
+	printk("1\n");
+
 	int ret = 0;
 
 	/* 获取设备节点 key_g8 */
