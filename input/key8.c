@@ -116,81 +116,13 @@ void timer_function(unsigned long arg)
 }
 
 /*
- * @description		: 打开设备
- * @param - inode 	: 传递给驱动的inode
- * @param - filp 	: 设备文件，file结构体有个叫做private_data的成员变量
- * 					  一般在open的时候将private_data指向设备结构体。
- * @return 			: 0 成功;其他 失败
- */
-static int key8_open(struct inode *inode, struct file *filp)
-{
-	filp->private_data = &key8; /* 设置私有数据 */
-
-	printk("key8 open!\r\n");
-	return 0;
-}
-
-/*
- * @description		: 从设备读取数据 
- * @param - filp 	: 要打开的设备文件(文件描述符)
- * @param - buf 	: 返回给用户空间的数据缓冲区
- * @param - cnt 	: 要读取的数据长度
- * @param - offt 	: 相对于文件首地址的偏移
- * @return 			: 读取的字节数，如果为负值，表示读取失败
- */
-static ssize_t key8_read(struct file *filp, char __user *buf, size_t cnt, loff_t *offt)
-{
-	struct key_dev* dev = (struct key_dev*)filp->private_data;
-	
-	printk("key8 read!\r\n");
-	return 0;
-}
-
-/*
- * @description		: 向设备写数据 
- * @param - filp 	: 设备文件，表示打开的文件描述符
- * @param - buf 	: 要写给设备写入的数据
- * @param - cnt 	: 要写入的数据长度
- * @param - offt 	: 相对于文件首地址的偏移
- * @return 			: 写入的字节数，如果为负值，表示写入失败
- */
-static ssize_t key8_write(struct file *filp, const char __user *buf, size_t cnt, loff_t *offt)
-{
-	struct key_dev* dev = (struct key_dev*)filp->private_data;
-	
-	printk("key8 write!\r\n");
-	return 0;
-}
-
-/*
- * @description		: 关闭/释放设备
- * @param - filp 	: 要关闭的设备文件(文件描述符)
- * @return 			: 0 成功;其他 失败
- */
-static int key8_release(struct inode *inode, struct file *filp)
-{
-	printk("key8 release!\r\n");
-	return 0;
-}
-
-/* 设备操作函数 */
-static struct file_operations key8_fops = 
-{
-	.owner = THIS_MODULE,	
-	.open = key8_open,
-	.read = key8_read,
-	.write = key8_write,
-	.release = key8_release,
-};
-
-/*
  * @description	: 驱动入口函数
  * @param 		: 无
  * @return 		: 无
  */
 static int __init key8_init(void)
 {
-	printk("1\n");
+	printk("DEBUG: in init!\r\n");
 
 	int ret = 0;
 
@@ -229,39 +161,47 @@ static int __init key8_init(void)
 	{
 		printk("SUCCESS: gpio_direction_input\r\n");
 	}
-	key8.irq_key.irq_num = irq_of_parse_and_map(key8.nd, 0);
 
+	/* 获取中断号 */
+	key8.irq_key.irq_num = irq_of_parse_and_map(key8.nd, 0);	// 从设备树节点 interrupts 属性获取中断号
+	// key8.irq_key.irq_num = gpio_to_irq(key8.irq_key.gpio);		// 通过 GPIO 编号获取中断号
+	
+	printk("DEBUG: irq_of_parse_and_map irq_num is %d\r\n", key8.irq_key.irq_num);
+	
 	/* 申请中断 */
 	sprintf(key8.irq_key.name, "key_g8");
 	key8.irq_key.handler = key8_handler;
 	key8.irq_key.value   = 1;
 
 	ret = request_irq(key8.irq_key.irq_num, key8.irq_key.handler, 
-					IRQF_TRIGGER_FALLING|IRQF_TRIGGER_RISING, 
-					key8.irq_key.name, &key8);
+					IRQ_TYPE_LEVEL_LOW, key8.irq_key.name, &key8);
 	if (ret < 0)
 	{
 		printk("ERROR: request_irq is %d\r\n", ret);
 		return -EFAULT;
 	}
+	else
+	{
+		printk("SUCCESS: request_irq\r\n");
+	}
 	
 	/* 创建定时器 */
-	init_timer(&key8.timer);
-	key8.timer.function = timer_function;
+	// init_timer(&key8.timer);
+	// key8.timer.function = timer_function;
 
 	/* 申请 input_dev */
-	key8.input_dev = input_allocate_device();
-	key8.input_dev->name = "key8";
-	key8.input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP);
-	input_set_capability(key8.input_dev, EV_KEY, KEY_0);
+	// key8.input_dev = input_allocate_device();
+	// key8.input_dev->name = "key8";
+	// key8.input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP);
+	// input_set_capability(key8.input_dev, EV_KEY, KEY_0);
 
-	/* 注册 input 设备 */
-	ret = input_register_device(key8.input_dev);
-	if (ret != 0)
-	{
-		printk("ERROR: input_register_device\r\n");
-		return ret;
-	}
+	// /* 注册 input 设备 */
+	// ret = input_register_device(key8.input_dev);
+	// if (ret != 0)
+	// {
+	// 	printk("ERROR: input_register_device\r\n");
+	// 	return ret;
+	// }
 
 	printk("key8 init!\r\n");
 	return 0;
@@ -274,8 +214,12 @@ static int __init key8_init(void)
  */
 static void __exit key8_exit(void)
 {
-	input_unregister_device(key8.input_dev);
-	input_free_device(key8.input_dev);
+	// del_timer_sync(&key8.timer);	// 删除定时器
+	free_irq(key8.irq_key.irq_num, &key8);	// 释放中断
+	gpio_free(key8.irq_key.gpio);	// 释放 IO
+
+	// input_unregister_device(key8.input_dev);
+	// input_free_device(key8.input_dev);
 
 	printk("key8 exit!\r\n");
 }
