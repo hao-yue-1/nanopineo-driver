@@ -4,7 +4,9 @@
 #include <string.h>
 #include <linux/input.h>
 
-static struct input_event inputevent;
+#define CLOSE_CMD		(_IO(0xEF, 0x1))
+#define OPEN_CMD		(_IO(0xEF, 0x2))
+#define SETPERIOD_CMD	(_IO(0xEF, 0x3))
 
 int main(int argc, char** argv)
 {
@@ -14,50 +16,58 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    int fd = open("/dev/input/event1", O_RDWR);
+    int fd = open("/dev/timery", O_RDWR);
     if (fd < 0)
     {
         printf("ERROR: open\n");
         return -1;
     }
 
-    int err = 0;
+    int ret = 0;
+    unsigned int cmd;
+    unsigned char str[100];
+    unsigned int arg;
     while (1)
     {
-        err = read(fd, &inputevent, sizeof(inputevent));
-        if (err < 0)
+        printf("Input CMD = ");
+        ret = scanf("%d", &cmd);
+        if (ret != 1)
         {
-            printf("ERROR: read\n");
-            continue;
+            gets(str);
         }
-        else
+
+        switch (cmd)
         {
-            printf("SUCCESS: read\n");
-        }
-        switch (inputevent.type)
-        {
-            case EV_KEY:
+            case 1:
             {
-                printf("inputevent.code is EV_KEY\n");
-                if (inputevent.code < BTN_MISC) 
-                {
-                    printf("key %d %s\r\n", inputevent.code, inputevent.value ? "press" : "release");
-                }
-                else
-                {
-                    printf("button %d %s\r\n", inputevent.code, inputevent.value ? "press" : "release");
-                }
-            }
-            
-            default:
-            {
-                printf("inputevent.code is invalid\n");
+                printf("CMD is CLOSE\n");
+                cmd = CLOSE_CMD;
                 break;
             }
+            case 2:
+            {
+                printf("CMD is OPEN\n");
+                cmd = OPEN_CMD;
+                break;
+            }
+            case 3:
+            {
+                printf("CMD is SETPERIOD\n");
+                cmd = SETPERIOD_CMD;
+                printf("Input Timer Period = ");
+                ret = scanf("%d", &arg);
+                if (ret != 1)
+                {
+                    gets(str);
+                }   
+                break;
+            }
+            default: printf("CMD is invalid\n"); break;
         }
+        
+        ioctl(fd, cmd, arg);   
     }
     
-
     close(fd);
     
     return 0;

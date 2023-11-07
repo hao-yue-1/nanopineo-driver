@@ -20,6 +20,7 @@
 #include <linux/miscdevice.h>
 
 #include <linux/timer.h>
+#include <linux/semaphore.h>
 
 // / {
 // 	model = "FriendlyElec NanoPi-NEO";
@@ -41,6 +42,10 @@
 // 		function = "gpio_out";
 // 	};
 // };
+
+#define CLOSE_CMD		(_IO(0xEF, 0x1))
+#define OPEN_CMD		(_IO(0xEF, 0x2))
+#define SETPERIOD_CMD	(_IO(0xEF, 0x3))
 
 /* 设备结构体 */
 struct timer_dev
@@ -74,7 +79,7 @@ static int timery_open(struct inode *inode, struct file *filp)
 {
 	filp->private_data = &timery; /* 设置私有数据 */
 
-	timery.timeperiod = 100;	// 默认周期为 1s
+	timery.time_period = 100;	// 默认周期为 1s
 
 	printk("timery open!\r\n");
 	return 0;
@@ -91,7 +96,7 @@ static long timery_unlocked_ioctl(struct file* filp, unsigned int cmd, unsigned 
 {
 	struct timer_dev* dev = (struct timer_dev*)filp->private_data;
 
-	int timer_period;
+	int time_period;
 	unsigned long flags;
 
 	switch (cmd)
@@ -104,16 +109,16 @@ static long timery_unlocked_ioctl(struct file* filp, unsigned int cmd, unsigned 
 		case OPEN_CMD:			// 开启定时器
 		{
 			spin_lock_irqsave(&dev->lock, flags);
-			timer_period = dev->time_period;
-			spin_unlock_irqsave(&dev->lock, flags);
-			mod_timer(&dev->timer, jiffies+msecs_to_jiffies(timer_period));
+			time_period = dev->time_period;
+			spin_unlock_irqrestore(&dev->lock, flags);
+			mod_timer(&dev->timer, jiffies+msecs_to_jiffies(time_period));
 			break;
 		}
 		case SETPERIOD_CMD:		// 设置定时器周期
 		{
 			spin_lock_irqsave(&dev->lock, flags);
-			dev->timer_period = arg;
-			spin_unlock_irqsave(&dev->lock, flags);
+			dev->time_period = arg;
+			spin_unlock_irqrestore(&dev->lock, flags);
 			mod_timer(&dev->timer, jiffies+msecs_to_jiffies(arg));
 			break;
 		}
@@ -122,7 +127,7 @@ static long timery_unlocked_ioctl(struct file* filp, unsigned int cmd, unsigned 
 }
 
 /* 设备操作函数 */
-static struct file_operations timer_fops =
+static struct file_operations timery_fops =
 {
 	.owner = THIS_MODULE,
 	.open  = timery_open,
@@ -139,7 +144,7 @@ void timer_function(unsigned long arg)
 	printk("DEBUG: this is timer_handler\r\n");
 	struct timer_dev* dev = (struct timer_dev*)arg;
 	static int sta = 1;
-	int timer_period;
+	int time_period;
 	unsigned long flags;
 
 	sta = !sta;
@@ -147,9 +152,9 @@ void timer_function(unsigned long arg)
 
 	/* 重启定时器 */
 	spin_lock_irqsave(&dev->lock, flags);
-	timer_period = dev->timer_period;
-	spin_unlock_irqsave(&dev->lock, flags);
-	mod_timer(&dev->timer, jiffies+msecs_to_jiffies(dev->timer_period;));
+	time_period = dev->time_period;
+	spin_unlock_irqrestore(&dev->lock, flags);
+	mod_timer(&dev->timer, jiffies+msecs_to_jiffies(dev->time_period));
 }
 
 /*
@@ -176,20 +181,20 @@ static int __init timery_init(void)
 	}
 
 	/* 获取 led_yellow 所使用的 gpio 编号 */
-	timery.irq_timer.gpio = of_get_named_gpio(timery.nd, "gpios", 0);
-	if (timery.irq_timer.gpio < 0)
+	timery.led_gpio = of_get_named_gpio(timery.nd, "gpios", 0);
+	if (timery.led_gpio < 0)
 	{
 		printk("ERROR: led_yellow.timer_gpio can't found\r\n");
 		return -EINVAL;
 	}
 	else
 	{
-		printk("SUCCESS: led_yellow.timer_gpio has been found is %d\r\n", timery.irq_timer.gpio);
+		printk("SUCCESS: led_yellow.timer_gpio has been found is %d\r\n", timery.led_gpio);
 	}
 
 	/* 设置 GPIO 为输出 */
 	gpio_request(timery.led_gpio, "led");
-	ret = gpio_direction_output(timery.irq_timer.gpio, 1);
+	ret = gpio_direction_output(timery.led_gpio, 1);
 	if (ret < 0)
 	{
 		printk("ERROR: gpio_direction_output\r\n");
