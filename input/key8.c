@@ -85,7 +85,7 @@ static irqreturn_t key8_handler(int irq, void* dev_id)
 
 	dev->cur_key_num = 0;
 	dev->timer.data = (volatile long)dev_id;
-	mod_timer(&dev->timer, jiffies+msecs_to_jiffies(10));	// 10ms
+	// mod_timer(&dev->timer, jiffies+msecs_to_jiffies(10));	// 10ms
 	
 	return IRQ_RETVAL(IRQ_HANDLED);
 }
@@ -153,6 +153,7 @@ static int __init key8_init(void)
 	}
 
 	/* 设置 GPIO 为输入 */
+	gpio_request(key8.irq_key.gpio, "key_g8");
 	ret = gpio_direction_input(key8.irq_key.gpio);
 	if (ret < 0)
 	{
@@ -173,7 +174,7 @@ static int __init key8_init(void)
 	/* 申请中断 */
 	sprintf(key8.irq_key.name, "key_g8");
 	key8.irq_key.handler = key8_handler;
-	key8.irq_key.value   = 1;
+	key8.irq_key.value   = KEY_0;
 
 	ret = request_irq(key8.irq_key.irq_num, key8.irq_key.handler, 
 					IRQ_TYPE_EDGE_BOTH, key8.irq_key.name, &key8);
@@ -190,6 +191,10 @@ static int __init key8_init(void)
 	/* 创建定时器 */
 	init_timer(&key8.timer);
 	key8.timer.function = timer_function;
+	key8.timer.data     = (unsigned long)&key8;
+
+	key8.timer.expires  = jiffies + msecs_to_jiffies(10);
+	add_timer(&key8.timer);
 
 	/* 申请 input_dev */
 	key8.input_dev = input_allocate_device();
@@ -216,7 +221,11 @@ static int __init key8_init(void)
  */
 static void __exit key8_exit(void)
 {
-	del_timer_sync(&key8.timer);	// 删除定时器
+	int ret = 0;
+
+	ret = del_timer_sync(&key8.timer);	// 删除定时器
+	printk("del_timer_sync ret is %d\r\n", ret);
+	
 	free_irq(key8.irq_key.irq_num, &key8);	// 释放中断
 	gpio_free(key8.irq_key.gpio);	// 释放 IO
 
