@@ -44,7 +44,7 @@ struct irq_key
 {
 	int gpio;				// GPIO 编号
 	int irq_num;			// 中断号
-	unsigned char value;	// 按键值
+	unsigned char value;	// 事件码
 	char name[10];			// 名称
 	irqreturn_t (*handler)(int, void*);	// 中断服务函数
 };
@@ -64,7 +64,6 @@ struct key_dev
 	struct input_dev* input_dev;	// input设备
 	atomic_t key_value;				// 有效的按键值
 	atomic_t release_key;			// 是否完成一次按键
-	unsigned char cur_key_num;		// 当前按键号
 
 	struct irq_key irq_key;			// 中断 IO
 	struct timer_list timer;		// 定时器
@@ -82,11 +81,34 @@ static irqreturn_t key8_handler(int irq, void* dev_id)
 {
 	printk("DEBUG: this is irq_handler\r\n");
 	struct key_dev* dev = (struct key_dev*)dev_id;
+	struct irq_key* key = &dev->irq_key;
 
-	dev->cur_key_num = 0;
-	dev->timer.data = (volatile long)dev_id;
+	// dev->timer.data = (volatile long)dev_id;
 	// mod_timer(&dev->timer, jiffies+msecs_to_jiffies(10));	// 10ms
+
+	// key8.timer.expires  = jiffies + msecs_to_jiffies(10);
+	// add_timer(&key8.timer);
 	
+	/* 上报按键值 */
+	unsigned char value = gpio_get_value(key->gpio);	// 读取 IO 值
+	printk("DEBUG: value = %d\r\n", value);
+	printk("-----------------------------------\r\n");
+	printk("dev->input_dev is %ld\r\n", dev->input_dev);
+	printk("key->value is %ld\r\n", &key->value);
+	printk("-----------------------------------\r\n");
+	// if (value == 0)	// 按键按下
+	// {
+	// 	input_report_key(dev->input_dev, key->value, 1);
+	// 	input_sync(dev->input_dev);
+	// 	printk("DEBUG: release_key is 1\r\n");
+	// }
+	// else			// 按键松开
+	// {
+	// 	input_report_key(dev->input_dev, key->value, 0);
+	// 	input_sync(dev->input_dev);
+	// 	printk("DEBUG: release_key is 0\r\n");
+	// }
+
 	return IRQ_RETVAL(IRQ_HANDLED);
 }
 
@@ -101,20 +123,20 @@ void timer_function(unsigned long arg)
 	struct key_dev* dev = (struct key_dev*)arg;
 	struct irq_key* key = &dev->irq_key;
 
-	/* 上报按键值 */
-	unsigned char value = gpio_get_value(key->gpio);	// 读取 IO 值
-	if (value == 0)	// 按键按下
-	{
-		input_report_key(dev->input_dev, key->value, 1);
-		input_sync(dev->input_dev);
-		printk("DEBUG: release_key is 1\r\n");
-	}
-	else			// 按键松开
-	{
-		input_report_key(dev->input_dev, key->value, 0);
-		input_sync(dev->input_dev);
-		printk("DEBUG: release_key is 0\r\n");
-	}
+	// /* 上报按键值 */
+	// unsigned char value = gpio_get_value(key->gpio);	// 读取 IO 值
+	// if (value == 0)	// 按键按下
+	// {
+	// 	input_report_key(dev->input_dev, key->value, 1);
+	// 	input_sync(dev->input_dev);
+	// 	printk("DEBUG: release_key is 1\r\n");
+	// }
+	// else			// 按键松开
+	// {
+	// 	input_report_key(dev->input_dev, key->value, 0);
+	// 	input_sync(dev->input_dev);
+	// 	printk("DEBUG: release_key is 0\r\n");
+	// }
 }
 
 /*
@@ -193,14 +215,14 @@ static int __init key8_init(void)
 	key8.timer.function = timer_function;
 	key8.timer.data     = (unsigned long)&key8;
 
-	key8.timer.expires  = jiffies + msecs_to_jiffies(10);
-	add_timer(&key8.timer);
+	// key8.timer.expires  = jiffies + msecs_to_jiffies(10);
+	// add_timer(&key8.timer);
 
 	/* 申请 input_dev */
 	key8.input_dev = input_allocate_device();
 	key8.input_dev->name = "key8";
-	key8.input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP);
-	input_set_capability(key8.input_dev, EV_KEY, KEY_0);
+	key8.input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP);	// 事件类型
+	input_set_capability(key8.input_dev, EV_KEY, KEY_0);			// 事件码
 
 	/* 注册 input 设备 */
 	ret = input_register_device(key8.input_dev);

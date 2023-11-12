@@ -36,7 +36,7 @@ int main(int argc, char** argv)
         }
         switch (inputevent.type)
         {
-            case EV_KEY:
+            case EV_KEY:    // 按键事件
             {
                 printf("inputevent.code is EV_KEY\n");
                 if (inputevent.code < BTN_MISC) 
@@ -47,6 +47,7 @@ int main(int argc, char** argv)
                 {
                     printf("button %d %s\r\n", inputevent.code, inputevent.value ? "press" : "release");
                 }
+                break;
             }
             
             default:
